@@ -1,9 +1,10 @@
 #ifndef OPERACOES
 #define OPERACOES
 
-int soma (int a, int b); 
-int sub(int a, int b);
-int div(int a, int b); 
-int mult(int a, int b); 
+float soma (float a, float b); 
+float sub(float a, float b);
+float divi(float a, float b); 
+float mult(float a, float b); 
+
 
 #endif

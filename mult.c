@@ -1,7 +1,6 @@
 #include <stdio.h>
-#include "operacoes.h"
 
-int mult(int a, int b){
-	int c = a*b; 
-	printf("Sua multiplicacao é: %d", c); 
+float mult(float a, float b){
+	float c = a*b; 
+	return c; 
 } 
