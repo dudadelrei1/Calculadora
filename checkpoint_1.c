@@ -1,7 +1,7 @@
 /*
 ------------------------------------------------------------
 Programa: Calculadora simples em C
-Autor: Duda Del Rei
+Autores: Alan Cunha e Maria Eduarda Del Rei
 Data: Outubro de 2025
 
 Descrição geral:
@@ -69,7 +69,7 @@ int main(void){
 	for (int i = 0; i < n; i++) {
 		//Le o valor
     	scanf("%f", &valores[i]);
-		//Le o operador, se nao for o ultimo numero
+		//Le o operador
     	if (i < n-1) {
         	scanf(" %c", &operadores[i]);
     	}
