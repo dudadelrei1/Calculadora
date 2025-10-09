@@ -59,7 +59,7 @@ int main(void){
     scanf("%d", &n); 
 	
 	//Armazena memoria para os valores
-	float valores[4*n]; 
+	float valores[n]; 
 
 	//Armazena memoria para os operadores
 	char operadores[n-1]; 
