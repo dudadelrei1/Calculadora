@@ -1,3 +1,27 @@
+/*
+ * ================================================
+ * CALCULADORA COM LISTA ENCADEADA
+ * ================================================
+ * 
+ * Programa que implementa uma calculadora interativa com suporte a:
+ *   - Operações matemáticas: + - * / com precedência correta
+ *   - Operador fatorial (!): unário pós-fixo
+ *   - Função Fibonacci: modo separado para cálculo de números da sequência
+ *   - Menu interativo: permite alternar entre modo expressão e modo Fibonacci
+ * 
+ * Características técnicas:
+ *   - Usa lista duplamente encadeada para armazenar e processar expressões
+ *   - Implementa precedência de operadores (!, *, /, +, -)
+ *   - Utiliza array de ponteiros para funções
+ *   - Utiliza alocação dinâmica
+ *   - Validações: divisão por zero, fatorial apenas para inteiros não-negativos
+ * 
+ * Exemplo de uso:
+ *   Modo Expressão: "3 + 5 * 2" → Resultado: 13.00
+ *   Modo Fibonacci: entrada 5 → Fibonacci(5) = 8
+ * 
+ */
+
 #include <stdio.h>     // Biblioteca padrão de entrada/saída (printf, scanf, fgets)
 #include <stdlib.h>    // Biblioteca para alocação dinâmica de memória (malloc, free) e atoi/atof
 #include <string.h>    // Biblioteca para manipulação de strings (strlen, strcmp, strcspn)
@@ -35,6 +59,48 @@ void liberar_lista(Leitura* lista);  // Libera memória alocada
 int eh_operador(char c);            // Verifica se caractere é operador
 float processar_expressao(const char* expressao); // Processa e calcula expressão
 int fatorial(int a);                // Calcula fatorial recursivo
+
+// ========================================
+// ARRAY DE PONTEIROS PARA FUNÇÕES
+// ========================================
+// Define um tipo de ponteiro para função que recebe 2 floats e retorna float
+typedef float (*operacao_t)(float, float);
+
+// Array global que mapeia operadores para funções matemáticas
+// Índice 0: + (soma)
+// Índice 1: - (subtração)
+// Índice 2: * (multiplicação)
+// Índice 3: / (divisão)
+operacao_t operacoes[4];
+
+// ========================================
+// FUNÇÃO: inicializar_operacoes
+// ========================================
+// Inicializa o array de ponteiros com as funções matemáticas
+// Deve ser chamada no início do main() antes de usar as operações
+void inicializar_operacoes(void) {
+    operacoes[0] = soma;   // +
+    operacoes[1] = sub;    // -
+    operacoes[2] = mult;   // *
+    operacoes[3] = divi;   // /
+}
+
+// ========================================
+// FUNÇÃO: obter_indice_operacao
+// ========================================
+// Converte um caractere de operador em índice do array de ponteiros
+// Parâmetro:
+//   - op: caractere do operador (+, -, *, /)
+// Retorna: índice (0-3) ou -1 se operador inválido
+int obter_indice_operacao(char op) {
+    switch (op) {
+        case '+': return 0;
+        case '-': return 1;
+        case '*': return 2;
+        case '/': return 3;
+        default: return -1;
+    }
+}
 
 // ========================================
 // FUNÇÃO: eh_operador
@@ -150,28 +216,23 @@ void combinar_nos(Leitura* operador_node) {
     float b = proximo->elements.valor;
     float resultado;
 
-    // ========== EXECUTA A OPERAÇÃO CORRETA ==========
-    switch (operador_node->elements.operador) {
-        case '*': 
-            resultado = mult(a, b); 
-            break;
-        case '/': 
-            // Verifica divisão por zero ANTES de chamar divi
-            if (b == 0) {
-                printf("Erro: Divisão por zero!\n");
-                return;
-            }
-            resultado = divi(a, b); 
-            break;
-        case '+': 
-            resultado = soma(a, b); 
-            break;
-        case '-': 
-            resultado = sub(a, b); 
-            break;
-        default: 
-            return;
+    // Validação: Verifica divisão por zero ANTES de executar
+    if (operador_node->elements.operador == '/' && b == 0) {
+        printf("Erro: Divisão por zero!\n");
+        return;
     }
+
+    // ========== EXECUTA A OPERAÇÃO CORRETA ==========
+    // Obtém o índice da operação através do operador
+    int idx = obter_indice_operacao(operador_node->elements.operador);
+    if (idx < 0) {
+        printf("Erro: Operador desconhecido\n");
+        return;
+    }
+
+    // Executa a operação através do ponteiro de função
+    // Chama a função correspondente do array operacoes[]
+    resultado = operacoes[idx](a, b);
 
     // ========== SUBSTITUI O OPERADOR PELO RESULTADO ==========
     operador_node->elements.valor = resultado;
@@ -458,6 +519,10 @@ void liberar_lista(Leitura* lista) {
 int main(void) { 
     char linha[100];     // Buffer para leitura de entrada
     char entrada;        // Caractere da escolha do modo
+
+    // ========== INICIALIZAÇÃO DO PROGRAMA ==========
+    // Inicializa o array de ponteiros para funções
+    inicializar_operacoes();
 
     // ========== EXIBIÇÃO DO MENU INICIAL ==========
     printf("=== CALCULADORA ===\n");
