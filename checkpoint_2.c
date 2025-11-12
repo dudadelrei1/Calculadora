@@ -1,243 +1,545 @@
-/* 
-    Ideia do código: 
-        Mesmo funcionamento do chechpoint 1, mas tratar com lista, e não com vetores
-        Valores lidos serão tipo CHAR (PESQUISAR COMO TRANSFORMAR STRING EM FLOAT)
-        EU ACHO que se criarmos uma lista que lê todos os valores tipo char, observarmos se é operador ou não, 
-        transformamos em float se necessário e DEPOIS seguirmos a lógica do checkpoint 1 FUNCIONA
-        É necessário trabalhar SEMPRE com uma váriavel RESULTADO para controlar as operações anteriores. 
+#include <stdio.h>     // Biblioteca padrão de entrada/saída (printf, scanf, fgets)
+#include <stdlib.h>    // Biblioteca para alocação dinâmica de memória (malloc, free) e atoi/atof
+#include <string.h>    // Biblioteca para manipulação de strings (strlen, strcmp, strcspn)
+#include <ctype.h>     // Biblioteca para verificação de caracteres (isdigit, isspace, toupper)
 
-*/
+// ========================================
+// DEFINIÇÃO DE ESTRUTURAS DE DADOS
+// ========================================
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+// Estrutura que armazena um ELEMENTO: número OU operador
+typedef struct Elementos {
+    float valor;     // Armazena o valor numérico (se for um número)
+    char operador;   // Armazena o caractere do operador (+, -, *, /, !) ou '\0' se for número
+} Elementos; 
 
-//Lista duplamente encadeada
+// Estrutura que representa um NÓ da lista duplamente encadeada
 typedef struct Leitura {
-    //String em formato de ponteiro
-    char* valor;
-    struct Leitura* prox;
-    struct Leitura* anterior;
+    Elementos elements;        // Dados do nó (valor e/ou operador)
+    struct Leitura* prox;      // Ponteiro para o próximo nó
+    struct Leitura* anterior;  // Ponteiro para o nó anterior
 } Leitura;
 
-float soma(char* a, char* b); 
-float sub(char* a, char* b); 
-float mult(char* a, char* b); 
-float divi(char* a, char* b); 
-float transforma(char* valor); 
+// ========================================
+// PROTÓTIPOS DE FUNÇÕES
+// ========================================
 
-//Lista encadeada para ler as entradas
-Leitura *criar_lista(Leitura* inicio, char* argumento) {
-    // Cria um novo nó dinamicamente com malloc
-    Leitura *novo = malloc(sizeof(Leitura));
+float soma(float a, float b);      // Função que realiza adição
+float sub(float a, float b);       // Função que realiza subtração
+float mult(float a, float b);      // Função que realiza multiplicação
+float divi(float a, float b);      // Função que realiza divisão
+Leitura* criar_lista(Leitura* inicio, float valor, char operador); // Insere elemento na lista
+void precedencia(Leitura** lista); // Aplica regras de precedência de operadores
+void imprimir_lista(Leitura* lista); // Exibe o conteúdo da lista (debug)
+void liberar_lista(Leitura* lista);  // Libera memória alocada
+int eh_operador(char c);            // Verifica se caractere é operador
+float processar_expressao(const char* expressao); // Processa e calcula expressão
+int fatorial(int a);                // Calcula fatorial recursivo
 
-    // Armazena o valor passado como argumento dentro do campo 'valor' do novo nó
-    novo->valor = malloc(sizeof(argumento)); // aloca espaço suficiente
-    strcpy(novo->valor, argumento);              // copia o conteúdo da string
+// ========================================
+// FUNÇÃO: eh_operador
+// ========================================
+// Verifica se um caractere é um operador matemático
+// Retorna: 1 (verdadeiro) se for +, -, *, /, ! ; 0 (falso) caso contrário
+int eh_operador(char c) {
+    return c == '+' || c == '-' || c == '*' || c == '/' || c == '!';
+}
 
+// ========================================
+// FUNÇÃO: criar_lista
+// ========================================
+// Insere um novo elemento (número ou operador) ao FINAL da lista
+// Parâmetros:
+//   - inicio: ponteiro para o primeiro nó (ou NULL se lista vazia)
+//   - valor: valor numérico do elemento
+//   - operador: caractere do operador (ou '\0' se for número)
+// Retorna: ponteiro para o início da lista (pode mudar se lista estava vazia)
+Leitura* criar_lista(Leitura* inicio, float valor, char operador) {
+    // Aloca memória para um novo nó
+    Leitura* novo = malloc(sizeof(Leitura));
+    if (!novo) {
+        // Se falhar em alocar, exibe erro e retorna a lista original
+        printf("Erro de alocação de memória\n");
+        return inicio;
+    }
 
-    // Como será o último nó, o ponteiro 'prox' aponta para NULL
-    novo->prox = NULL;
+    // Preenche os campos do novo nó
+    novo->elements.valor = valor;
+    novo->elements.operador = operador;
+    novo->prox = NULL;      // Novo nó é sempre o último (inicialmente)
+    novo->anterior = NULL;  // Será ajustado se houver nó anterior
 
-    // Caso a lista esteja vazia (início == NULL), 
-    // o novo nó será o primeiro elemento da lista
+    // Se a lista está vazia, o novo nó é o início
     if (inicio == NULL) {
         return novo;
     }
 
-    // Se a lista já possui elementos, percorremos até o último nó
-    Leitura *atual = inicio;
+    // Caso contrário, percorre até o final da lista
+    Leitura* atual = inicio;
     while (atual->prox != NULL) {
-        atual = atual->prox; // avança nó a nó até chegar no final
+        atual = atual->prox;
     }
 
-    // Quando o último nó é encontrado, seu 'prox' passa a apontar para o novo nó
-    atual->prox = novo;
-    //Quando o último nó é encontrado, seu 'anterior' será o que aponta para ele
-    novo->anterior = atual; 
+    // Liga o novo nó ao final e ajusta ponteiros bidireccionais
+    atual->prox = novo;      // Último nó agora aponta para novo
+    novo->anterior = atual;  // Novo nó aponta para anterior
 
-    // Retorna o ponteiro para o início da lista (não muda)
     return inicio;
 }
 
-Leitura* elimina_elemento(Leitura* lista){
-                Leitura* no_anterior = lista->anterior;
-                Leitura* no_proximo  = lista->prox;
+// ========================================
+// FUNÇÃO: combinar_nos
+// ========================================
+// Combina um operador com seus operandos, calcula o resultado e reconecta a lista
+// Para operadores binários (+, -, *, /): combina anterior + operador + próximo
+// Para operador unário (!): combina anterior + ! (fatorial)
+// Parâmetro:
+//   - operador_node: ponteiro para o nó do operador a ser processado
+void combinar_nos(Leitura* operador_node) {
+    Leitura* anterior = operador_node->anterior;   // Nó à esquerda do operador
+    Leitura* proximo = operador_node->prox;        // Nó à direita do operador
 
-                // 1. Reajusta o encadeamento
-                if (no_anterior != NULL) {
-                    lista->anterior = no_anterior->anterior;
-                    if (no_anterior->anterior != NULL)
-                        no_anterior->anterior->prox = lista;
-                }
-
-                if (no_proximo != NULL) {
-                    lista->prox = no_proximo->prox;
-                    if (no_proximo->prox != NULL)
-                        no_proximo->prox->anterior = lista;
-                }
-
-                // 2. Libera os nós removidos
-                free(no_anterior);
-                free(no_proximo);
-
-                return lista; 
-}
-
-int controla_tamanho(Leitura* lista, int tamanho){
-    for(Leitura* atual = lista; atual != NULL; atual = atual->prox){
-        tamanho++; 
-    }
-    return tamanho; 
-
-}
-//Analisa a precedencia dos operadores
-
-void precedencia(Leitura* lista){
-    //Vetor auxiliar para armazenar os valores da minha lista
-    float* valores = malloc(100*sizeof(char));
-    if(!valores){
-        printf("ERRO NA ALOCACAO"); 
-        return 1;
-    }
-
-    int controle = controla_tamanho(lista, 0); 
-
-    int index = 0; //Variavel de controle do while
-	// Primeiro while (* e /, por ordem de precedencia)
-    while (index < controle) {
-        if (lista->valor == '*' || lista->valor == '/') {
-            if (lista->valor == '*'){
-                valores[index] = mult((lista->anterior)->valor, (lista->prox)->valor);
-                //Poderia igualar lista->valor diretamente, mas precisamos usar alocacao dinamica
-                lista->valor = malloc(strlen(valores) + 1); // aloca espaço suficiente
-                strcpy(lista->valor, valores);              // copia o conteúdo da string
-                elimina_elemento(lista);
-
-            }
-            else{
-                valores[index] = divi((lista->anterior)->valor, (lista->prox)->valor);
-                lista->valor = malloc(strlen(valores) + 1); // aloca espaço suficiente
-                strcpy(lista->valor, valores);              // copia o conteúdo da string
-                elimina_elemento(lista);
-            }
+    // ========== CASO ESPECIAL: FATORIAL (unário pós-fixo) ==========
+    // Fatorial só precisa do número anterior, não do próximo
+    if (operador_node->elements.operador == '!') {
+        if (!anterior) {
+            printf("Erro: Fatorial sem operando\n");
+            return;
         }
-        index++; 
-    }
 
-    controle = controla_tamanho(lista, 0); 
-
-	// Segundo while (+ e -)
-	//Comportamento similar ao primeiro while
-    while (index < controle) {
-        if (lista->valor == '+' || lista->valor == '-') {
-            if (lista->valor == '+'){
-                valores[index] = soma((lista->anterior)->valor, (lista->prox)->valor);
-                lista->valor = malloc(strlen(valores) + 1); // aloca espaço suficiente
-                strcpy(lista->valor, valores);              // copia o conteúdo da string
-                elimina_elemento(lista);
-
-            }
-            else{
-                valores[index] = sub((lista->anterior)->valor, (lista->prox)->valor);
-                lista->valor = malloc(strlen(valores) + 1); // aloca espaço suficiente
-                strcpy(lista->valor, valores);              // copia o conteúdo da string
-                elimina_elemento(lista);
-            }
+        float val = anterior->elements.valor;
+        int n = (int)val;
+        // Valida se é inteiro não-negativo
+        if (val < 0 || (float)n != val) {
+            printf("Erro: Fatorial definido somente para inteiros nao-negativos\n");
+            return;
         }
-        index++; 
+
+        // Calcula o fatorial usando a função recursiva
+        int fact_i = fatorial(n);
+        float resultado = (float)fact_i;
+
+        // Substitui o nó do operador pelo resultado
+        operador_node->elements.valor = resultado;
+        operador_node->elements.operador = '\0'; // '\0' marca que agora é número
+
+        // Remove o nó anterior (o operando) da lista e reconecta
+        operador_node->anterior = anterior->anterior;
+        if (anterior->anterior) {
+            anterior->anterior->prox = operador_node;
+        }
+        // O nó do operador mantém o próximo
+        operador_node->prox = proximo;
+        if (proximo) {
+            proximo->anterior = operador_node;
+        }
+
+        free(anterior); // Libera memória do nó removido
+        return;
     }
-    free(valores);
+
+    // ========== OPERADORES BINÁRIOS: VALIDAÇÃO ==========
+    // Para +, -, *, / precisamos de números antes E depois
+    if (!anterior || !proximo) {
+        printf("Erro: Operador sem operandos suficientes\n");
+        return;
+    }
+
+    // Extrai os valores dos operandos
+    float a = anterior->elements.valor;
+    float b = proximo->elements.valor;
+    float resultado;
+
+    // ========== EXECUTA A OPERAÇÃO CORRETA ==========
+    switch (operador_node->elements.operador) {
+        case '*': 
+            resultado = mult(a, b); 
+            break;
+        case '/': 
+            // Verifica divisão por zero ANTES de chamar divi
+            if (b == 0) {
+                printf("Erro: Divisão por zero!\n");
+                return;
+            }
+            resultado = divi(a, b); 
+            break;
+        case '+': 
+            resultado = soma(a, b); 
+            break;
+        case '-': 
+            resultado = sub(a, b); 
+            break;
+        default: 
+            return;
+    }
+
+    // ========== SUBSTITUI O OPERADOR PELO RESULTADO ==========
+    operador_node->elements.valor = resultado;
+    operador_node->elements.operador = '\0'; // Marca como número
+
+    // ========== RECONECTA A LISTA ==========
+    // Remove o nó anterior: faz o avô apontar direto para o operador
+    operador_node->anterior = anterior->anterior;
+    if (anterior->anterior) {
+        anterior->anterior->prox = operador_node;
+    }
+
+    // Remove o próximo nó: faz o operador apontar para o após-próximo
+    operador_node->prox = proximo->prox;
+    if (proximo->prox) {
+        proximo->prox->anterior = operador_node;
+    }
+
+    // Libera memória dos dois nós que foram "consumidos"
+    free(anterior);
+    free(proximo);
 }
 
-//Transforma o tipo de char para float
-float transforma(char* valor){
-    float num = strtof(valor, NULL);
-    return num; 
+// ========================================
+// FUNÇÃO: precedencia
+// ========================================
+// Aplica as REGRAS DE PRECEDÊNCIA de operadores matemáticos
+// Ordem de processamento (do maior para o menor):
+//   1º: Fatorial (!)
+//   2º: Multiplicação (*) e Divisão (/)
+//   3º: Adição (+) e Subtração (-)
+// Parâmetro:
+//   - lista: ponteiro duplo para a lista (pode mudar o início)
+void precedencia(Leitura** lista) {
+    if (!lista || !*lista) return; // Se lista vazia, sai
+
+    int modificado; // Flag para saber se houve mudança na passada
     
+    // ========== PRIMEIRA PASSADA: FATORIAL (!) ==========
+    // Processa todos os fatoriais primeiro (maior precedência)
+    do {
+        modificado = 0;                    // Inicializa flag
+        Leitura* atual = *lista;           // Começa do início
+
+        while (atual != NULL) {
+            // Procura pelo primeiro fatorial
+            if (eh_operador(atual->elements.operador) && atual->elements.operador == '!') {
+                // Atualiza o início se o nó atual for o primeiro
+                if (atual->anterior == *lista) {
+                    *lista = atual;
+                }
+
+                combinar_nos(atual);    // Combina e calcula
+                modificado = 1;         // Marca que fez algo
+                break;                  // Recomeça do início
+            }
+            atual = atual->prox;        // Vai para o próximo nó
+        }
+    } while (modificado);  // Continua enquanto houver fatoriais
+
+    // ========== SEGUNDA PASSADA: * e / ==========
+    // Processa multiplicações e divisões (segunda precedência)
+    do {
+        modificado = 0;
+        Leitura* atual = *lista;
+        
+        while (atual != NULL) {
+            // Procura pelo primeiro * ou /
+            if (eh_operador(atual->elements.operador) && 
+               (atual->elements.operador == '*' || atual->elements.operador == '/')) {
+                
+                // Atualiza o início se necessário
+                if (atual->anterior == *lista) {
+                    *lista = atual;
+                }
+
+                combinar_nos(atual);
+                modificado = 1;
+                break;
+            }
+            atual = atual->prox;
+        }
+    } while (modificado);
+
+    // ========== TERCEIRA PASSADA: + e - ==========
+    // Processa adições e subtrações (última precedência)
+    do {
+        modificado = 0;
+        Leitura* atual = *lista;
+        
+        while (atual != NULL) {
+            // Procura pelo primeiro + ou -
+            if (eh_operador(atual->elements.operador) && 
+               (atual->elements.operador == '+' || atual->elements.operador == '-')) {
+                
+                // Atualiza o início se necessário
+                if (atual->anterior == *lista) {
+                    *lista = atual;
+                }
+
+                combinar_nos(atual);
+                modificado = 1;
+                break;
+            }
+            atual = atual->prox;
+        }
+    } while (modificado);
 }
 
-//Funcao soma
-float soma(char* a, char* b){
-	float c = transforma(a) + transforma(b); 
-	return c;
-} 
+// ========================================
+// FUNÇÕES MATEMÁTICAS BÁSICAS
+// ========================================
 
-//Funcao subtracao
-float sub(char* a, char* b){
-    float c = transforma(a) - transforma(b); 
-    return c; 
+// Soma de dois números: a + b
+float soma(float a, float b) {
+    return a + b;
 }
 
-//Funcao divisao
-float divi(char* a, char* b){
-    float c = transforma(a)/transforma(b); 
-    return c; 
+// Subtração de dois números: a - b
+float sub(float a, float b) {
+    return a - b;
 }
 
-//Funcao multiplicacao
-float mult(char* a, char* b){
-    float c = transforma(a)*transforma(b); 
-    return c; 
+// Multiplicação de dois números: a * b
+float mult(float a, float b) {
+    return a * b;
 }
 
-//Recursao - Fatorial
-//DEPOIS CHECAR SE A ENTRADA É INTEIRA MESMO
-/*int fatorial(int a){
+// Divisão de dois números: a / b (com verificação de divisão por zero)
+float divi(float a, float b) {
+    if (b == 0) {
+        printf("Erro: Divisão por zero!\n");
+        return 0;
+    }
+    return a / b;
+}
+
+// ========================================
+// FUNÇÃO: fatorial (RECURSIVA)
+// ========================================
+// Calcula o fatorial de um número inteiro: n! = n × (n-1) × ... × 1
+// Casos base: 0! = 1, 1! = 1
+// Parâmetro:
+//   - a: número do qual calcular o fatorial
+// Retorna: fatorial de a
+int fatorial(int a){
     if(a == 0 || a == 1){
-        return 1; 
+        return 1;       // Caso base
     }else{
-        return a*fatorial(a-1);
+        return a * fatorial(a-1);  // Chamada recursiva
     }
-
-}*/
-
-//Modulo
-/*float modulo(float a){
-    if(a<0){
-        return -a;
-    } else{
-        return a; 
-    } 
-}*/
- 
-//Radiciacao
-/*float raiz(float a, float b){
-
-}*/
-
-//Potenciacao
-/*float potencia(float a, float b){
-
-}*/
-
-int main(void){ 
-    Leitura* lista = NULL;
-    char entrada[100];
-
-    printf("Digite uma expressão (ex: 3 + 5 * 2). ENTER vazio para parar:\n");
-
-    // Lê os argumentos (um por um)
-    while (1) {
-        if (!fgets(entrada, sizeof(entrada), stdin)) break;
-        entrada[strcspn(entrada, "\n")] = '\0';
-        if (strlen(entrada) == 0) break;
-
-        lista = criar_lista(lista, entrada);
-    }
-
-    precedencia(lista);
-    //Ponteiro para funcao
-    float (*ponteiro)(char*) = transforma;
-    printf("\nResultado final = %.2f\n", ponteiro(lista->valor));
-
-    // Libera memória
-    while (lista != NULL) {
-        Leitura* temp = lista;
-        lista = lista->prox;
-        free(temp->valor);
-        free(temp);
-    }
-
-    return 0; 
 }
+
+// ========================================
+// FUNÇÃO: fibonacci (RECURSIVA)
+// ========================================
+// Calcula o n-ésimo número de Fibonacci
+// Sequência: F(0)=1, F(1)=1, F(n)=F(n-1)+F(n-2)
+// Parâmetro:
+//   - n: índice do número de Fibonacci
+// Retorna: n-ésimo número de Fibonacci
+int fibonacci(int n){
+    if(n == 0){
+        return 1;      // Caso base
+    }
+    if(n == 1){
+        return 1;      // Caso base
+    }
+    // Chamadas recursivas
+    return fibonacci(n-1) + fibonacci(n-2);
+}
+
+// ========================================
+// FUNÇÃO: processar_expressao
+// ========================================
+// Processa uma expressão matemática em string
+// Passos:
+//   1. Percorre a string caractere por caractere
+//   2. Identifica números e operadores
+//   3. Constrói uma lista encadeada (números e operadores em ordem)
+//   4. Aplica regras de precedência
+//   5. Retorna e exibe o resultado final
+// Parâmetro:
+//   - expressao: string com a expressão (ex: "3 + 5 * 2")
+// Retorna: resultado final como float
+float processar_expressao(const char* expressao) {
+    Leitura* lista = NULL;              // Inicia lista vazia
+    const char* p = expressao;          // Ponteiro para percorrer string
+    char buffer[100];                   // Buffer para ler números
+    int buf_index = 0;                  // Índice dentro do buffer
+    int esperando_numero = 1;           // 1=esperando número, 0=esperando operador
+
+    // ========== LEITURA E PARSING DA EXPRESSÃO ==========
+    while (*p) {
+        // Ignora espaços em branco
+        if (isspace(*p)) {
+            p++;
+            continue;
+        }
+
+        // CASO 1: Caractere é dígito, ponto ou sinal negativo
+        if (isdigit(*p) || *p == '.' || (*p == '-' && esperando_numero)) {
+            buf_index = 0;  // Reinicia buffer
+            
+            // Trata sinal negativo
+            if (*p == '-') {
+                buffer[buf_index++] = *p++;
+            }
+            
+            // Coleta todos os dígitos e pontos decimais
+            while (isdigit(*p) || *p == '.') {
+                buffer[buf_index++] = *p++;
+            }
+            buffer[buf_index] = '\0';  // Termina a string
+            
+            // Converte string para float e insere na lista
+            float num = atof(buffer);
+            lista = criar_lista(lista, num, '\0');
+            esperando_numero = 0;  // Agora espera operador
+        }
+        // CASO 2: Caractere é operador
+        else if (eh_operador(*p) && !esperando_numero) {
+            char op = *p;
+            lista = criar_lista(lista, 0, op);  // Insere operador (valor=0)
+            p++;
+            
+            // Fatorial é pós-fixo: não precisa de número depois
+            if (op == '!') {
+                esperando_numero = 0;  // Pode vir outro operador (outro !)
+            } else {
+                esperando_numero = 1;  // Espera número após operador binário
+            }
+        }
+        // CASO 3: Caractere inválido
+        else {
+            printf("Caractere inválido ou expressão mal formada: %c\n", *p);
+            p++;
+        }
+    }
+
+    // Validação: se lista vazia, expressão não tinha nada
+    if (!lista) {
+        printf("Expressão vazia!\n");
+        return 0;
+    }
+
+    // ========== APLICAR PRECEDÊNCIA E CALCULAR ==========
+    precedencia(&lista);
+
+    // Extrai resultado (deve haver apenas um nó restante)
+    float resultado = lista->elements.valor;
+    printf("Resultado: %.2f\n", resultado);
+
+    // Libera toda a memória alocada
+    liberar_lista(lista);
+
+    return resultado;
+}
+
+// ========================================
+// FUNÇÃO: liberar_lista
+// ========================================
+// Libera toda a memória alocada para a lista
+// Percorre cada nó, salva o próximo, libera o atual e passa pro próximo
+// Parâmetro:
+//   - lista: ponteiro para o início da lista
+void liberar_lista(Leitura* lista) {
+    Leitura* atual = lista;
+    while (atual != NULL) {
+        Leitura* proximo = atual->prox;  // Salva o próximo antes de liberar
+        free(atual);                     // Libera o nó atual
+        atual = proximo;                 // Avança para o próximo
+    }
+}
+
+// ========================================
+// FUNÇÃO: main
+// ========================================
+// Função principal do programa
+// Exibe menu de escolha entre dois modos:
+//   1. Modo Expressão: calcula expressões matemáticas
+//   2. Modo Fibonacci: calcula números de Fibonacci
+// Retorna: 0 se execução bem-sucedida
+int main(void) { 
+    char linha[100];     // Buffer para leitura de entrada
+    char entrada;        // Caractere da escolha do modo
+
+    // ========== EXIBIÇÃO DO MENU INICIAL ==========
+    printf("=== CALCULADORA ===\n");
+    printf("Digite expressoes matematicas ex: 3 + 5 * 2\n");
+    printf("Suporte para: +, -, *, /, !\n");
+
+    // ========== LOOP PRINCIPAL DO PROGRAMA ==========
+    while (1) {
+        // Pergunta qual modo o usuário deseja
+        printf("\nFibonacci(F) ou Expressao numerica(E)? (ou 'S' para sair): ");
+        if (!fgets(linha, sizeof(linha), stdin)) {
+            break;  // Se erro na leitura, sai
+        }
+        
+        // Remove o '\n' do final da string lida
+        linha[strcspn(linha, "\n")] = '\0';
+        
+        // Converte primeira letra para maiúscula
+        entrada = (char)toupper((unsigned char)linha[0]);
+
+        // OPÇÃO 1: Sair do programa
+        if (entrada == 'S') {
+            break;
+        } 
+        // OPÇÃO 2: Modo Fibonacci
+        else if (entrada == 'F') {
+            while (1) {
+                printf("Digite o numero para Fibonacci (ou 'voltar' para menu): ");
+                if (!fgets(linha, sizeof(linha), stdin)) {
+                    break;
+                }
+                linha[strcspn(linha, "\n")] = '\0';
+                
+                // Opção para voltar ao menu principal
+                if (strcmp(linha, "voltar") == 0) {
+                    break;
+                }
+                // Opção para encerrar completamente
+                if (strcmp(linha, "sair") == 0) {
+                    printf("Programa encerrado.\n");
+                    return 0;
+                }
+                
+                // Converte entrada para inteiro e calcula Fibonacci
+                int n = atoi(linha);
+                printf("Fibonacci(%d) = %d\n\n", n, fibonacci(n));
+            }
+        } 
+        // OPÇÃO 3: Modo Expressão
+        else if (entrada == 'E') {
+            while (1) {
+                printf("Expressao (ou 'voltar' para menu): ");
+                if (!fgets(linha, sizeof(linha), stdin)) {
+                    break;
+                }
+                linha[strcspn(linha, "\n")] = '\0';
+                
+                // Opção para voltar ao menu principal
+                if (strcmp(linha, "voltar") == 0) {
+                    break;
+                }
+                // Opção para encerrar completamente
+                if (strcmp(linha, "sair") == 0) {
+                    printf("Programa encerrado.\n");
+                    return 0;
+                }
+                // Ignora entradas vazias
+                if (strlen(linha) == 0) {
+                    continue;
+                }
+
+                // Processa e calcula a expressão
+                processar_expressao(linha);
+                printf("\n");
+            }
+        } 
+        // OPÇÃO 4: Entrada inválida
+        else {
+            printf("Opcao invalida. Digite 'F' para Fibonacci ou 'E' para Expressao.\n");
+        }
+    }
+
+    printf("Programa encerrado.\n");
+    return 0; 
+} 
