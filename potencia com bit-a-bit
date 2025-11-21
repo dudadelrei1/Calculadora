@@ -1,0 +1,33 @@
+// Função que calcula base^expoente usando bit-a-bit
+#include<stdio.h>
+
+int potencia(unsigned int base, unsigned int expoente){
+
+    unsigned int maskara = 1;       // Máscara para testar o bit menos significativo
+    unsigned int auxiliar;              // Vai receber (expoente & 1)
+    unsigned int resultado = 1;     // Acumulador do resultado final
+    unsigned int valor_atual = base; // Representa a "base" que será elevada, mudando a cada iteração
+
+    // Enquanto ainda existirem bits no expoente para analisar
+    while(expoente > 0){
+
+        // Pega o bit menos significativo do expoente
+        auxiliar = expoente & maskara;
+
+        // Se esse bit for 1, multiplicamos o acumulador pela base atual
+        if(auxiliar == 1){
+            resultado = resultado * valor_atual;
+        }
+
+        // A base é elevada ao quadrado a cada etapa
+        // Isso funciona porque cada bit representa uma potência de 2
+        valor_atual *= valor_atual;
+
+        // Desloca o expoente para a direita
+        // Assim analisamos o próximo bit
+        expoente >>= 1;
+    }
+
+    // Retorna o resultado calculado
+    return resultado;
+}
