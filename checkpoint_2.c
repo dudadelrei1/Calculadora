@@ -59,7 +59,7 @@ void liberar_lista(Leitura* lista);  // Libera memória alocada
 int eh_operador(char c);            // Verifica se caractere é operador
 float processar_expressao(const char* expressao); // Processa e calcula expressão
 int fatorial(int a);                // Calcula fatorial recursivo
-
+int potencia(unsigned a, unsigned b); //Calcula potencia com operador bit a bit
 // ========================================
 // ARRAY DE PONTEIROS PARA FUNÇÕES
 // ========================================
@@ -98,6 +98,7 @@ int obter_indice_operacao(char op) {
         case '-': return 1;
         case '*': return 2;
         case '/': return 3;
+        case '^': return 4;
         default: return -1;
     }
 }
@@ -108,7 +109,7 @@ int obter_indice_operacao(char op) {
 // Verifica se um caractere é um operador matemático
 // Retorna: 1 (verdadeiro) se for +, -, *, /, ! ; 0 (falso) caso contrário
 int eh_operador(char c) {
-    return c == '+' || c == '-' || c == '*' || c == '/' || c == '!';
+    return c == '+' || c == '-' || c == '*' || c == '/' || c == '!' || c == '^';
 }
 
 // ========================================
@@ -205,7 +206,7 @@ void combinar_nos(Leitura* operador_node) {
     }
 
     // ========== OPERADORES BINÁRIOS: VALIDAÇÃO ==========
-    // Para +, -, *, / precisamos de números antes E depois
+    // Para +, -, *, /, ^ precisamos de números antes E depois
     if (!anterior || !proximo) {
         printf("Erro: Operador sem operandos suficientes\n");
         return;
@@ -232,7 +233,13 @@ void combinar_nos(Leitura* operador_node) {
 
     // Executa a operação através do ponteiro de função
     // Chama a função correspondente do array operacoes[]
-    resultado = operacoes[idx](a, b);
+    if(idx < 4){
+        resultado = operacoes[idx](a, b);
+    }
+    if(idx ==  4){
+        resultado = (float)potencia((unsigned int)a, (unsigned int)b);    
+    }
+
 
     // ========== SUBSTITUI O OPERADOR PELO RESULTADO ==========
     operador_node->elements.valor = resultado;
@@ -293,7 +300,29 @@ void precedencia(Leitura** lista) {
         }
     } while (modificado);  // Continua enquanto houver fatoriais
 
-    // ========== SEGUNDA PASSADA: * e / ==========
+     // ========== SEGUNDA PASSADA: POTENCIA (^) ==========
+    // Processa todos os fatoriais primeiro (maior precedência)
+    do {
+        modificado = 0;                    // Inicializa flag
+        Leitura* atual = *lista;           // Começa do início
+
+        while (atual != NULL) {
+            // Procura pelo primeiro fatorial
+            if (eh_operador(atual->elements.operador) && atual->elements.operador == '^') {
+                // Atualiza o início se o nó atual for o primeiro
+                if (atual->anterior == *lista) {
+                    *lista = atual;
+                }
+
+                combinar_nos(atual);    // Combina e calcula
+                modificado = 1;         // Marca que fez algo
+                break;                  // Recomeça do início
+            }
+            atual = atual->prox;        // Vai para o próximo nó
+        }
+    } while (modificado);  // Continua enquanto houver fatoriais
+
+    // ========== TERCEIRA PASSADA: * e / ==========
     // Processa multiplicações e divisões (segunda precedência)
     do {
         modificado = 0;
@@ -317,7 +346,7 @@ void precedencia(Leitura** lista) {
         }
     } while (modificado);
 
-    // ========== TERCEIRA PASSADA: + e - ==========
+    // ========== QUARTA PASSADA: + e - ==========
     // Processa adições e subtrações (última precedência)
     do {
         modificado = 0;
@@ -405,6 +434,36 @@ int fibonacci(int n){
     return fibonacci(n-1) + fibonacci(n-2);
 }
 
+int potencia(unsigned int base, unsigned int expoente){
+
+    unsigned int maskara = 1;       // Máscara para testar o bit menos significativo
+    unsigned int auxiliar;              // Vai receber (expoente & 1)
+    unsigned int resultado = 1;     // Acumulador do resultado final
+    unsigned int valor_atual = base; // Representa a "base" que será elevada, mudando a cada iteração
+
+    // Enquanto ainda existirem bits no expoente para analisar
+    while(expoente > 0){
+
+        // Pega o bit menos significativo do expoente
+        auxiliar = expoente & maskara;
+
+        // Se esse bit for 1, multiplicamos o acumulador pela base atual
+        if(auxiliar == 1){
+            resultado = resultado * valor_atual;
+        }
+
+        // A base é elevada ao quadrado a cada etapa
+        // Isso funciona porque cada bit representa uma potência de 2
+        valor_atual *= valor_atual;
+
+        // Desloca o expoente para a direita
+        // Assim analisamos o próximo bit
+        expoente >>= 1;
+    }
+
+    // Retorna o resultado calculado
+    return resultado;
+}
 // ========================================
 // FUNÇÃO: processar_expressao
 // ========================================
