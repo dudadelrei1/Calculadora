@@ -22,11 +22,16 @@
  * 
  */
 
+#define _USE_MATH_DEFINES
 #include <stdio.h>     // Biblioteca padrão de entrada/saída (printf, scanf, fgets)
 #include <stdlib.h>    // Biblioteca para alocação dinâmica de memória (malloc, free) e atoi/atof
 #include <string.h>    // Biblioteca para manipulação de strings (strlen, strcmp, strcspn)
 #include <ctype.h>     // Biblioteca para verificação de caracteres (isdigit, isspace, toupper)
 #include <math.h> //Biblioteca para calculo de potencia
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 // ========================================
 // DEFINIÇÃO DE ESTRUTURAS DE DADOS
@@ -257,7 +262,7 @@ void combinar_nos(Leitura* operador_node) {
         }
         //Se for float
         else{
-            potenciaint(a,b);
+            resultado = potenciaint(a,b);
         }
     }
 
@@ -420,6 +425,7 @@ float divi(float a, float b) {
     return a / b;
 }
 
+
 // ========================================
 // FUNÇÃO: fatorial (RECURSIVA)
 // ========================================
@@ -506,6 +512,10 @@ float processar_expressao(const char* expressao) {
     Leitura* lista = NULL;              // Inicia lista vazia
     const char* p = expressao;          // Ponteiro para percorrer string
     char buffer[100];                   // Buffer para ler números
+    char trigo[3];                      // String para analisar se eh uma funcao trigonometrica
+    char valor[4];                      // String que armazena o valor a ser processado na funcao trigonometrica
+    int valor_index;                    // Indice dentro da string
+    int trigo_index = 0;                // Indice dentro da string
     int buf_index = 0;                  // Índice dentro do buffer
     int esperando_numero = 1;           // 1=esperando número, 0=esperando operador
 
@@ -520,18 +530,18 @@ float processar_expressao(const char* expressao) {
         // CASO 1: Caractere é dígito, ponto ou sinal negativo
         if (isdigit(*p) || *p == '.' || (*p == '-' && esperando_numero)) {
             buf_index = 0;  // Reinicia buffer
-            
+
             // Trata sinal negativo
             if (*p == '-') {
                 buffer[buf_index++] = *p++;
             }
-            
+
             // Coleta todos os dígitos e pontos decimais
             while (isdigit(*p) || *p == '.') {
                 buffer[buf_index++] = *p++;
             }
             buffer[buf_index] = '\0';  // Termina a string
-            
+
             // Converte string para float e insere na lista
             float num = atof(buffer);
             lista = criar_lista(lista, num, '\0');
@@ -542,7 +552,7 @@ float processar_expressao(const char* expressao) {
             char op = *p;
             lista = criar_lista(lista, 0, op);  // Insere operador (valor=0)
             p++;
-            
+
             // Fatorial é pós-fixo: não precisa de número depois
             if (op == '!') {
                 esperando_numero = 0;  // Pode vir outro operador (outro !)
@@ -550,12 +560,65 @@ float processar_expressao(const char* expressao) {
                 esperando_numero = 1;  // Espera número após operador binário
             }
         }
-        // CASO 3: Caractere inválido
-        else {
-            printf("Caractere inválido ou expressão mal formada: %c\n", *p);
-            p++;
+        else if (isalpha(*p) && esperando_numero) {
+            // lê a função
+            trigo_index = 0;
+            while (isalpha(*p)) {
+                trigo[trigo_index++] = *p++;
+            }
+            trigo[trigo_index] = '\0';
+
+            // Verifica se é função válida
+            if (strcmp(trigo, "sin") == 0 ||
+                strcmp(trigo, "sen") == 0 ||
+                strcmp(trigo, "cos") == 0 ||
+                strcmp(trigo, "tan") == 0) {
+
+            // pula espaços
+            while (isspace(*p)){p++;}
+
+            // espera um '('
+            if (*p == '('){p++;}
+            else {
+                printf("Erro: esperado '('\n");
+                return 0;
+            }
+
+            // lê número dentro do parênteses
+            valor_index = 0;
+            while (isdigit(*p) || *p == '.' || *p == '-') {
+                valor[valor_index++] = *p++;
+            }
+            valor[valor_index] = '\0';
+
+            // espera ')'
+            if (*p == ')'){p++;}
+            else {
+                printf("Erro: esperado ')'\n");
+                return 0;
+            }
+
+            float x = atof(valor);
+            float resposta;
+
+            if (strcmp(trigo, "sin") == 0 || strcmp(trigo, "sen") == 0){resposta = sin((x/180)*M_PI);}
+            else if (strcmp(trigo, "cos") == 0){resposta = cos((x/180)*M_PI);}
+            else{resposta = tan((x/180)*M_PI);}
+            lista = criar_lista(lista, resposta, '\0');
+            //Espera um operador
+            esperando_numero = 0;
         }
+        else {
+        printf("Função trigonométrica inválida: %s\n", trigo);
+        }
+
     }
+    // CASO 3: Caractere inválido
+    else {
+        printf("Caractere inválido ou expressão mal formada: %c\n", *p);
+        p++;
+    }
+} 
 
     // Validação: se lista vazia, expressão não tinha nada
     if (!lista) {
@@ -568,14 +631,13 @@ float processar_expressao(const char* expressao) {
 
     // Extrai resultado (deve haver apenas um nó restante)
     float resultado = lista->elements.valor;
-    printf("Resultado: %.2f\n", resultado);
+    printf("Resultado: %.4f\n", resultado);
 
     // Libera toda a memória alocada
     liberar_lista(lista);
 
     return resultado;
-}
-
+} 
 // ========================================
 // FUNÇÃO: liberar_lista
 // ========================================
@@ -592,22 +654,9 @@ void liberar_lista(Leitura* lista) {
     }
 }
 
-// ========================================
-// FUNÇÃO: main
-// ========================================
-// Função principal do programa
-// Exibe menu de escolha entre dois modos:
-//   1. Modo Expressão: calcula expressões matemáticas
-//   2. Modo Fibonacci: calcula números de Fibonacci
-// Retorna: 0 se execução bem-sucedida
-int main(void) { 
+int modo(){
     char linha[100];     // Buffer para leitura de entrada
     char entrada;        // Caractere da escolha do modo
-
-    // ========== INICIALIZAÇÃO DO PROGRAMA ==========
-    // Inicializa o array de ponteiros para funções
-    inicializar_operacoes();
-
     // ========== EXIBIÇÃO DO MENU INICIAL ==========
     printf("=== CALCULADORA ===\n");
     printf("Digite expressoes matematicas ex: 3 + 5 * 2\n");
@@ -688,7 +737,20 @@ int main(void) {
             printf("Opcao invalida. Digite 'F' para Fibonacci ou 'E' para Expressao.\n");
         }
     }
-
     printf("Programa encerrado.\n");
+    return 0;
+}
+
+// ========================================
+// FUNÇÃO: main
+// ========================================
+// Função principal do programa
+// Exibe menu de escolha entre dois modos:
+//   1. Modo Expressão: calcula expressões matemáticas
+//   2. Modo Fibonacci: calcula números de Fibonacci
+// Retorna: 0 se execução bem-sucedida
+int main(void) { 
+    inicializar_operacoes();
+    modo();
     return 0; 
-} 
+}
