@@ -34,10 +34,10 @@ void mostrar_historico(void); //Função que exibe o histórico ao usuário
 void calculadora(void);
 void inicializar_operacoes(void);
 int modo(void);
-typedef float (*operacao_t)(float, float);
-
-#endif
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+#endif
+
