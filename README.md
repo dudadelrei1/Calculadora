@@ -1,4 +1,4 @@
--> Calculadora Científica em C
+### Calculadora Científica em C
 
 Este projeto consiste em uma calculadora científica desenvolvida em C que permite ao usuário calcular expressões matemáticas diretamente pelo terminal.
 
